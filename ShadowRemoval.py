@@ -50,7 +50,7 @@ def edge_median_filter(shadow_clear_img__h_s_v, contours_list, filter_size=7):
     return cv.cvtColor(temp_img, cv.COLOR_HSV2BGR)
 
 
-def shadowRemover(imgName, debugging=False,
+def shadowRemover(imgName, verbose=False,
                   region_adjustment_kernel_size=10,
                   shadow_dilation_kernel_size=3,
                   shadow_dilation_iteration=5,
@@ -76,7 +76,7 @@ def shadowRemover(imgName, debugging=False,
     else:  # Else, also consider B channel
         mask = cv.inRange(convertedImg, (0, 0, 0), (thresholds[0], 256, thresholds[2]))
 
-    # Apply dilation and erosion to shadow regions to get a better result
+    # TODO: Apply dilation and erosion to shadow regions to get a better result
     kernel_size = (region_adjustment_kernel_size, region_adjustment_kernel_size)
     kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, kernel_size)
     cv.morphologyEx(mask, cv.MORPH_CLOSE, kernel, mask)
@@ -86,7 +86,7 @@ def shadowRemover(imgName, debugging=False,
     # Initialize the labels of the blobs in our binary image
     labels = measure.label(mask)
     label_filter = np.zeros(mask.shape, dtype="uint8")
-    blob_threshold = 350  # Modify the parameters for optimization
+    blob_threshold = 200  # TODO: Modify the parameters for optimization
 
     # Now, we will iterate over each label's pixels
     for label in np.unique(labels):
@@ -105,11 +105,11 @@ def shadowRemover(imgName, debugging=False,
                     shadow_average_bgr = np.mean(orgImage[shadow_indices[0], shadow_indices[1], :], axis=0)
 
                 # For debugging, cut the current shadow region from the image
-                if debugging:
+                if verbose:
                     reverse_mask = cv.cvtColor(cv.bitwise_not(temp_filter), cv.COLOR_GRAY2BGR)
                     img_w_hole = orgImage & reverse_mask
 
-                # Apply dilation few times, in order to obtain non-shadow pixels around shadow region
+                # TODO: Apply dilation few times, in order to obtain non-shadow pixels around shadow region
                 # Play with the parameters for optimization
                 non_shadow_kernel_size = (shadow_dilation_kernel_size, shadow_dilation_kernel_size)
                 non_shadow_kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, non_shadow_kernel_size)
@@ -123,7 +123,7 @@ def shadowRemover(imgName, debugging=False,
                 _, contours, hierarchy = cv.findContours(temp_filter, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
 
                 # Draw contours around shadow region
-                if debugging == 1:
+                if verbose == 1:
                     temp_filter = cv.cvtColor(temp_filter, cv.COLOR_GRAY2BGR)
                     cv.drawContours(temp_filter, contours, -1, (255, 0, 0), 3)
                     cv.imshow("Contours", temp_filter)
@@ -159,13 +159,13 @@ def shadowRemover(imgName, debugging=False,
                 # Then apply median filtering over edges to smooth them
                 # At least on the images I tried, this doesn't work as intended.
                 # It is possible that this is the result of using a high frequency image only
-                if debugging:
+                if verbose:
                     dirty_shadows = np.copy(shadowClearImg)
                 # Image is converted to HSV before filtering, as BGR components of the image
                 # is more interconnected, therefore filtering each channel independently wouldn't be correct
                 shadowClearImg = edge_median_filter(cv.cvtColor(shadowClearImg, cv.COLOR_BGR2HSV), contours)
 
-            if debugging:
+            if verbose:
                 cv.imshow("LAB image", convertedImg)
                 cv.imshow("Image with hole", img_w_hole)
                 cv.imshow("Dirty Shadows", dirty_shadows)
@@ -181,7 +181,7 @@ def shadowRemover(imgName, debugging=False,
     cv.imshow("Corrected shadow!", shadowClearImg)
     cv.imshow("Original Image", orgImage)
 
-    if debugging:
+    if verbose:
         cv.drawContours(mask, contours, -1, (0, 0, 255), 3)
         cv.imshow("Contours", mask)
     cv.waitKey(0)
@@ -192,8 +192,19 @@ def shadowRemover(imgName, debugging=False,
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("usage: ShadowRemoval.py <imgName> [debugging] [region_adjustment_kernel_size] "
-              "[shadow_dilation_kernel_size] [shadow_dilation_iteration] [lab_adjustment]")
-        sys.exit(2)
-    shadowRemover(*sys.argv[1:])
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Remove shadows from given image",
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter
+                                     )
+    parser.add_argument('-i', '--image', help="Image of interest", default="test.jpg")
+    parser.add_argument('-v', '--verbose', help="Verbose", const= True,
+                        default=False, nargs='?')
+    parser.add_argument('--rk', help="Region Adjustment Kernel Size", default=10)
+    parser.add_argument('--sdk', help="Shadow Dilation Kernel Size", default=3)
+    parser.add_argument('--sdi', help="Shadow Dilation Iteration", default=5)
+    parser.add_argument('--lab', help="Adjust the pixel values according to LAB", const= True,
+                        default=False, nargs='?')
+    args = parser.parse_args()
+
+    shadowRemover(args.image, args.verbose, args.rk, args.sdk, args.sdi,args.lab)
