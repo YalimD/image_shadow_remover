@@ -19,6 +19,7 @@ Cybernetics and information technologies 13.1 (2013): 95-103.
 
 '''
 
+__all__ = ['ShadowRemover']
 
 class ShadowRemover:
 
@@ -194,21 +195,3 @@ class ShadowRemover:
         cv.imwrite(f_name, shadowClearImg)
         print ("Saved result as " + f_name)
 
-
-if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser(description="Remove shadows from given image",
-                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter
-                                     )
-    parser.add_argument('-i', '--image', help="Image of interest", default="test.jpg")
-    parser.add_argument('-v', '--verbose', help="Verbose", const= True,
-                        default=False, nargs='?')
-    parser.add_argument('--rk', help="Region Adjustment Kernel Size", default=10)
-    parser.add_argument('--sdk', help="Shadow Dilation Kernel Size", default=3)
-    parser.add_argument('--sdi', help="Shadow Dilation Iteration", default=5)
-    parser.add_argument('--lab', help="Adjust the pixel values according to LAB", const= True,
-                        default=False, nargs='?')
-    args = parser.parse_args()
-
-    ShadowRemover.removeShadows(*vars(args).values())
