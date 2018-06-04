@@ -8,6 +8,8 @@ if __name__ == "__main__":
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter
                                      )
     parser.add_argument('-i', '--image', help="Image of interest")
+    parser.add_argument('-s', '--save', help= "Whetever the program should save the result", const = True,
+                        default=False, nargs='?')
     parser.add_argument('-v', '--verbose', help="Verbose", const= True,
                         default=False, nargs='?')
     parser.add_argument('--rk', help="Region Adjustment Kernel Size", default=10)

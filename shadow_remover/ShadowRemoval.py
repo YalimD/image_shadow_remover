@@ -56,6 +56,7 @@ class ShadowRemover:
 
     @staticmethod
     def removeShadows(imgName,
+                      save = False,
                       lab_adjustment=False,
                       region_adjustment_kernel_size=10,
                       shadow_dilation_iteration=5,
@@ -182,16 +183,19 @@ class ShadowRemover:
         mask_gray = mask
         mask = cv.cvtColor(mask, cv.COLOR_GRAY2RGB)
 
-        cv.imshow("Shadows", mask)
-        cv.imshow("Corrected shadow!", shadowClearImg)
-        cv.imshow("Original Image", orgImage)
-
         if verbose:
+            cv.imshow("Shadows", mask)
+            cv.imshow("Corrected shadow!", shadowClearImg)
+            cv.imshow("Original Image", orgImage)
+
             cv.drawContours(mask, contours, -1, (0, 0, 255), 3)
             cv.imshow("Contours", mask)
-        cv.waitKey(0)
+            cv.waitKey(0)
 
-        f_name = imgName[:imgName.index(".")] + "_shadowClear" + imgName[imgName.index("."):]
-        cv.imwrite(f_name, shadowClearImg)
-        print ("Saved result as " + f_name)
+        if save:
+            f_name = imgName[:imgName.index(".")] + "_shadowClear" + imgName[imgName.index("."):]
+            cv.imwrite(f_name, shadowClearImg)
+            print ("Saved result as " + f_name)
+
+        return shadowClearImg
 
