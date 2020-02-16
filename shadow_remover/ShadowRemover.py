@@ -1,7 +1,6 @@
-from skimage import measure
 import cv2 as cv
 import numpy as np
-import sys
+from skimage import measure
 
 '''
 Shadow removal code by Yalım Doğan
@@ -19,7 +18,6 @@ Cybernetics and information technologies 13.1 (2013): 95-103.
 
 '''
 
-__all__ = ['ShadowRemover']
 
 class ShadowRemover:
 
@@ -42,7 +40,6 @@ class ShadowRemover:
 
         return pixel_values
 
-
     # Applies median filtering on given contour pixels, the filter size is adjustable
     @staticmethod
     def edge_median_filter(shadow_clear_img__h_s_v, contours_list, filter_size=7):
@@ -50,38 +47,35 @@ class ShadowRemover:
 
         for partition in contours_list:
             for point in partition:
-                temp_img[point[0][1]][point[0][0]] = ShadowRemover.manuel_median_filter(shadow_clear_img__h_s_v, point[0], filter_size)
+                temp_img[point[0][1]][point[0][0]] = ShadowRemover.manuel_median_filter(shadow_clear_img__h_s_v,
+                                                                                        point[0], filter_size)
 
         return cv.cvtColor(temp_img, cv.COLOR_HSV2BGR)
 
     @staticmethod
-    def removeShadows(imgName,
-                      save = False,
-                      lab_adjustment=False,
-                      region_adjustment_kernel_size=10,
-                      shadow_dilation_iteration=5,
-                      shadow_dilation_kernel_size=3,
-                      verbose=False):
-        # imgName = "test.jpg"
-        orgImage = cv.imread(imgName)
-        print("Read the image {}".format(imgName))
+    def remove_shadows(org_image,
+                       lab_adjustment=False,
+                       region_adjustment_kernel_size=10,
+                       shadow_dilation_iteration=5,
+                       shadow_dilation_kernel_size=3,
+                       verbose=False):
 
         # If the image is in BGRA color space, convert it to BGR
-        if orgImage.shape[2] == 4:
-            orgImage = cv.cvtColor(orgImage, cv.COLOR_BGRA2BGR)
-        convertedImg = cv.cvtColor(orgImage, cv.COLOR_BGR2LAB)
-        shadowClearImg = np.copy(orgImage)  # Used for constructing corrected image
+        if org_image.shape[2] == 4:
+            org_image = cv.cvtColor(org_image, cv.COLOR_BGRA2BGR)
+        converted_img = cv.cvtColor(org_image, cv.COLOR_BGR2LAB)
+        shadow_clear_img = np.copy(org_image)  # Used for constructing corrected image
 
         # Calculate the mean values of A and B across all pixels
-        means = [np.mean(convertedImg[:, :, i]) for i in range(3)]
-        thresholds = [means[i] - (np.std(convertedImg[:, :, i]) / 3) for i in range(3)]
+        means = [np.mean(converted_img[:, :, i]) for i in range(3)]
+        thresholds = [means[i] - (np.std(converted_img[:, :, i]) / 3) for i in range(3)]
 
         # If mean is below 256 (which is I think the max value for a channel)
         # Apply threshold using only L
         if sum(means[1:]) <= 256:
-            mask = cv.inRange(convertedImg, (0, 0, 0), (thresholds[0], 256, 256))
+            mask = cv.inRange(converted_img, (0, 0, 0), (thresholds[0], 256, 256))
         else:  # Else, also consider B channel
-            mask = cv.inRange(convertedImg, (0, 0, 0), (thresholds[0], 256, thresholds[2]))
+            mask = cv.inRange(converted_img, (0, 0, 0), (thresholds[0], 256, thresholds[2]))
 
         kernel_size = (region_adjustment_kernel_size, region_adjustment_kernel_size)
         kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, kernel_size)
@@ -91,8 +85,7 @@ class ShadowRemover:
         # We need connected components
         # Initialize the labels of the blobs in our binary image
         labels = measure.label(mask)
-        label_filter = np.zeros(mask.shape, dtype="uint8")
-        blob_threshold = 200
+        blob_threshold = 2500
 
         # Now, we will iterate over each label's pixels
         for label in np.unique(labels):
@@ -106,30 +99,29 @@ class ShadowRemover:
 
                     # Calculate average LAB and BGR values in current shadow region
                     if lab_adjustment:
-                        shadow_average_LAB = np.mean(convertedImg[shadow_indices[0], shadow_indices[1], :], axis=0)
+                        shadow_average_LAB = np.mean(converted_img[shadow_indices[0], shadow_indices[1], :], axis=0)
                     else:
-                        shadow_average_bgr = np.mean(orgImage[shadow_indices[0], shadow_indices[1], :], axis=0)
+                        shadow_average_bgr = np.mean(org_image[shadow_indices[0], shadow_indices[1], :], axis=0)
 
                     # For debugging, cut the current shadow region from the image
                     if verbose:
                         reverse_mask = cv.cvtColor(cv.bitwise_not(temp_filter), cv.COLOR_GRAY2BGR)
-                        img_w_hole = orgImage & reverse_mask
+                        img_w_hole = org_image & reverse_mask
 
-                    # TODO: Apply dilation few times, in order to obtain non-shadow pixels around shadow region
-                    # Play with the parameters for optimization
                     non_shadow_kernel_size = (shadow_dilation_kernel_size, shadow_dilation_kernel_size)
                     non_shadow_kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, non_shadow_kernel_size)
-                    non_shadow_temp_filter = cv.dilate(temp_filter, non_shadow_kernel, iterations=shadow_dilation_iteration)
+                    non_shadow_temp_filter = cv.dilate(temp_filter, non_shadow_kernel,
+                                                       iterations=shadow_dilation_iteration)
 
                     # Get the new set of indices and remove shadow indices from them
                     non_shadow_temp_filter = cv.bitwise_xor(non_shadow_temp_filter, temp_filter)
                     non_shadow_indices = np.where(non_shadow_temp_filter == 255)
 
                     # Contours are used for extracting the edges of the current shadow region
-                    _, contours, hierarchy = cv.findContours(temp_filter, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
+                    contours, hierarchy = cv.findContours(temp_filter, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
 
                     # Draw contours around shadow region
-                    if verbose == 1:
+                    if verbose:
                         temp_filter = cv.cvtColor(temp_filter, cv.COLOR_GRAY2BGR)
                         cv.drawContours(temp_filter, contours, -1, (255, 0, 0), 3)
                         cv.imshow("Contours", temp_filter)
@@ -141,61 +133,80 @@ class ShadowRemover:
                     # Find the average of the non-shadow areas
                     if lab_adjustment:
                         # Get the average LAB from border areas
-                        border_average_LAB = np.mean(convertedImg[non_shadow_indices[0], non_shadow_indices[1], :], axis=0)
+                        border_average_LAB = np.mean(converted_img[non_shadow_indices[0], non_shadow_indices[1], :],
+                                                     axis=0)
                         # Calculate ratios that are going to be used on clearing the current shadow region
                         # This is different for each region, therefore calculated each time
                         lab_ratio = border_average_LAB / shadow_average_LAB
 
-                        # Adjust LAB THIS DOESN'T REVIVE THE COLOR INFO, ONLY ADDS ILLUMINANCE
-
-                        shadowClearImg = cv.cvtColor(shadowClearImg, cv.COLOR_BGR2LAB)
-                        shadowClearImg[shadow_indices[0], shadow_indices[1]] = np.uint8(
-                            shadowClearImg[shadow_indices[0],
+                        shadow_clear_img = cv.cvtColor(shadow_clear_img, cv.COLOR_BGR2LAB)
+                        shadow_clear_img[shadow_indices[0], shadow_indices[1]] = np.uint8(
+                            shadow_clear_img[shadow_indices[0],
                                            shadow_indices[1]] * lab_ratio)
-                        shadowClearImg = cv.cvtColor(shadowClearImg, cv.COLOR_LAB2BGR)
+                        shadow_clear_img = cv.cvtColor(shadow_clear_img, cv.COLOR_LAB2BGR)
                     else:
                         # Get the average BGR from border areas
-                        border_average_bgr = np.mean(orgImage[non_shadow_indices[0], non_shadow_indices[1], :], axis=0)
+                        border_average_bgr = np.mean(org_image[non_shadow_indices[0], non_shadow_indices[1], :], axis=0)
                         bgr_ratio = border_average_bgr / shadow_average_bgr
                         # Adjust BGR
-                        shadowClearImg[shadow_indices[0], shadow_indices[1]] = np.uint8(shadowClearImg[shadow_indices[0],
-                                                                                                       shadow_indices[
-                                                                                                           1]] * bgr_ratio)
+                        shadow_clear_img[shadow_indices[0], shadow_indices[1]] = np.uint8(
+                            shadow_clear_img[shadow_indices[0],
+                                           shadow_indices[
+                                               1]] * bgr_ratio)
 
                     # Then apply median filtering over edges to smooth them
                     # At least on the images I tried, this doesn't work as intended.
                     # It is possible that this is the result of using a high frequency image only
                     if verbose:
-                        dirty_shadows = np.copy(shadowClearImg)
+                        dirty_shadows = np.copy(shadow_clear_img)
                     # Image is converted to HSV before filtering, as BGR components of the image
                     # is more interconnected, therefore filtering each channel independently wouldn't be correct
-                    shadowClearImg = ShadowRemover.edge_median_filter(cv.cvtColor(shadowClearImg, cv.COLOR_BGR2HSV), contours)
+                    shadow_clear_img = ShadowRemover.edge_median_filter(cv.cvtColor(shadow_clear_img, cv.COLOR_BGR2HSV),
+                                                                      contours)
 
                 if verbose:
-                    cv.imshow("LAB image", convertedImg)
+                    cv.imshow("LAB image", converted_img)
                     cv.imshow("Image with hole", img_w_hole)
                     cv.imshow("Dirty Shadows", dirty_shadows)
-                    cv.imshow("Corrected shadow!", shadowClearImg)
-                    cv.imshow("OriginalImage", orgImage)
+                    cv.imshow("Corrected shadow!", shadow_clear_img)
+                    cv.imshow("OriginalImage", org_image)
                     cv.waitKey(0)
                     cv.destroyAllWindows()
 
-        mask_gray = mask
         mask = cv.cvtColor(mask, cv.COLOR_GRAY2RGB)
 
         if verbose:
             cv.imshow("Shadows", mask)
-            cv.imshow("Corrected shadow!", shadowClearImg)
-            cv.imshow("Original Image", orgImage)
+            cv.imshow("Corrected shadow!", shadow_clear_img)
+            cv.imshow("Original Image", org_image)
 
             cv.drawContours(mask, contours, -1, (0, 0, 255), 3)
             cv.imshow("Contours", mask)
             cv.waitKey(0)
 
-        if save:
-            f_name = imgName[:imgName.index(".")] + "_shadowClear" + imgName[imgName.index("."):]
-            cv.imwrite(f_name, shadowClearImg)
-            print ("Saved result as " + f_name)
+        return shadow_clear_img
 
-        return shadowClearImg
+    @staticmethod
+    def process_image_file(img_name,
+                           save,
+                           verbose,
+                           region_adjustment_kernel_size,
+                           shadow_dilation_kernel_size,
+                           shadow_dilation_iteration,
+                           lab_adjustment):
+
+        org_image = cv.imread(img_name)
+        print("Read the image {}".format(img_name))
+
+        shadow_clear = ShadowRemover.remove_shadows(org_image,
+                                                   lab_adjustment=lab_adjustment,
+                                                   region_adjustment_kernel_size=region_adjustment_kernel_size,
+                                                   shadow_dilation_iteration=shadow_dilation_iteration,
+                                                   shadow_dilation_kernel_size=shadow_dilation_kernel_size,
+                                                   verbose=verbose)
+
+        if save:
+            f_name = img_name[:img_name.index(".")] + "_shadowClear" + img_name[img_name.index("."):]
+            cv.imwrite(f_name, shadow_clear)
+            print("Saved result as " + f_name)
 
