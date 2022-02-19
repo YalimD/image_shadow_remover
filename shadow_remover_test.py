@@ -1,22 +1,22 @@
 
-from shadow_remover import ShadowRemover
+from shadow_remover import process_image_file
 
 if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Remove shadows from given image",
-                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter
-                                     )
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('-i', '--image', required=True, help="Image of interest")
     parser.add_argument('-s', '--save', help= "Save the result",
-                        default=True)
-    parser.add_argument('-v', '--verbose', help="Verbose",
-                        default=False)
+                        default=True, nargs='?')
+    parser.add_argument('--lab', help="Adjust the pixel values according to LAB",
+                        default=False, nargs='?')
     parser.add_argument('--rk', help="Region Adjustment Kernel Size", default=10)
     parser.add_argument('--sdk', help="Shadow Dilation Kernel Size", default=3)
     parser.add_argument('--sdi', help="Shadow Dilation Iteration", default=5)
-    parser.add_argument('--lab', help="Adjust the pixel values according to LAB",
-                        default=False)
+    parser.add_argument('--sst', help="Shadow size threshold", default=2500)
+    parser.add_argument('-v', '--verbose', help="Verbose", const=True,
+                        default=False, nargs='?')
     args = parser.parse_args()
 
-    ShadowRemover.process_image_file(*vars(args).values())
+    process_image_file(*vars(args).values())
