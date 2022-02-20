@@ -155,22 +155,24 @@ def process_regions(org_image: np.ndarray,
     non_shadow_kernel_size = (shadow_dilation_kernel_size, shadow_dilation_kernel_size)
     non_shadow_kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, non_shadow_kernel_size)
 
+    CHANNEL_MAX = 255
+
     # Now, we will iterate over each label's pixels
     for label in np.unique(labels):
         if not label == 0:
             temp_filter = np.zeros(mask.shape, dtype="uint8")
-            temp_filter[labels == label] = 255
+            temp_filter[labels == label] = CHANNEL_MAX
 
             # Only consider blobs with size above threshold
             if cv.countNonZero(temp_filter) >= shadow_size_threshold:
-                shadow_indices = np.where(temp_filter == 255)
+                shadow_indices = np.where(temp_filter == CHANNEL_MAX)
 
                 non_shadow_temp_filter = cv.dilate(temp_filter, non_shadow_kernel,
                                                    iterations=shadow_dilation_iteration)
 
                 # Get the new set of indices and remove shadow indices from them
                 non_shadow_temp_filter = cv.bitwise_xor(non_shadow_temp_filter, temp_filter)
-                non_shadow_indices = np.where(non_shadow_temp_filter == 255)
+                non_shadow_indices = np.where(non_shadow_temp_filter == CHANNEL_MAX)
 
                 # Contours are used for extracting the edges of the current shadow region
                 contours, hierarchy = cv.findContours(temp_filter, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
