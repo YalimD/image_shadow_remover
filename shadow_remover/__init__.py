@@ -1,1 +1,1 @@
-from .ShadowRemover import *
+from .shadow_remover import *
