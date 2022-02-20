@@ -3,6 +3,7 @@ from typing import Tuple, List
 import cv2 as cv
 import numpy as np
 from skimage import measure
+from matplotlib import pyplot as plt
 
 '''
 Shadow removal code by Yalım Doğan
@@ -147,11 +148,26 @@ def process_regions(org_image,
                     temp_filter = cv.cvtColor(temp_filter, cv.COLOR_GRAY2BGR)
                     cv.drawContours(temp_filter, contours, -1, (255, 0, 0), 3)
 
-                    all_images = cv.hconcat([org_image, temp_filter, img_w_hole, shadow_clear_img])
+                    fig, axes = plt.subplots(2, 2)
 
-                    cv.imshow(f"Shadow Region {label}", all_images)
-                    cv.waitKey(0)
-                    cv.destroyAllWindows()
+                    ax = axes.ravel()
+
+                    plt.title(f"Shadow Region {label}")
+
+                    ax[0].imshow(cv.cvtColor(org_image, cv.COLOR_BGR2RGB))
+                    ax[0].set_title("Original Image")
+
+                    ax[1].imshow(cv.cvtColor(temp_filter, cv.COLOR_BGR2RGB))
+                    ax[1].set_title("Shadow Region")
+
+                    ax[2].imshow(cv.cvtColor(img_w_hole, cv.COLOR_BGR2RGB))
+                    ax[2].set_title("Shadow Region Cut")
+
+                    ax[3].imshow(cv.cvtColor(shadow_clear_img, cv.COLOR_BGR2RGB))
+                    ax[3].set_title("Corrected Image")
+
+                    plt.tight_layout()
+                    plt.show()
 
     return shadow_clear_img
 
@@ -225,8 +241,22 @@ def process_image_file(img_name,
                                         shadow_size_threshold,
                                         verbose=verbose)
 
-    cv.imshow("Original - Shadow Mask - Cleared Shadows", cv.hconcat([org_image, mask, shadow_clear]))
-    cv.waitKey(0)
+    _, axes = plt.subplots(1, 3)
+    ax = axes.ravel()
+
+    plt.title("Final Results")
+
+    ax[0].imshow(cv.cvtColor(org_image, cv.COLOR_BGR2RGB))
+    ax[0].set_title("Original Image")
+
+    ax[1].imshow(cv.cvtColor(mask, cv.COLOR_BGR2RGB))
+    ax[1].set_title("Shadow Regions")
+
+    ax[2].imshow(cv.cvtColor(shadow_clear, cv.COLOR_BGR2RGB))
+    ax[2].set_title("Corrected Image")
+
+    plt.tight_layout()
+    plt.show()
 
     if save:
         f_name = img_name[:img_name.index(".")] + "_shadowClear" + img_name[img_name.index("."):]
