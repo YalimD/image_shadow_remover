@@ -23,12 +23,10 @@ Cybernetics and information technologies 13.1 (2013): 95-103.
 
 
 # TODO:
-# Matplotlib rather than opencv for showing images
 # Documentation
 
 # Applies median filtering over given point
-def median_filter(img, point, filter_size) -> List:
-    # Obtain window indices
+def median_filter(img: np.ndarray, point: np.ndarray, filter_size: int) -> List:
     indices = [[x, y]
                for x in range(point[1] - filter_size // 2, point[1] + filter_size // 2 + 1)
                for y in range(point[0] - filter_size // 2, point[0] + filter_size // 2 + 1)]
@@ -48,7 +46,7 @@ def median_filter(img, point, filter_size) -> List:
 
 
 # Applies median filtering on given contour pixels, the filter size is adjustable
-def edge_median_filter(img, contours_list, filter_size=7) -> np.ndarray:
+def edge_median_filter(img: np.ndarray, contours_list: tuple, filter_size: int = 7) -> np.ndarray:
     temp_img = np.copy(img)
 
     for partition in contours_list:
@@ -60,14 +58,94 @@ def edge_median_filter(img, contours_list, filter_size=7) -> np.ndarray:
     return cv.cvtColor(temp_img, cv.COLOR_HSV2BGR)
 
 
-def process_regions(org_image,
-                    lab_img,
-                    mask,
-                    lab_adjustment,
-                    shadow_dilation_kernel_size,
-                    shadow_dilation_iteration,
-                    shadow_size_threshold,
-                    verbose) -> np.ndarray:
+def display_region(org_image: np.ndarray,
+                   shadow_clear_image: np.ndarray,
+                   label: int,
+                   label_region: np.ndarray,
+                   contours: tuple) -> None:
+    # For debugging, cut the current shadow region from the image
+    reverse_mask = cv.cvtColor(cv.bitwise_not(label_region), cv.COLOR_GRAY2BGR)
+    img_w_hole = org_image & reverse_mask
+
+    temp_filter = cv.cvtColor(label_region, cv.COLOR_GRAY2BGR)
+    cv.drawContours(temp_filter, contours, -1, (255, 0, 0), 3)
+
+    fig, axes = plt.subplots(2, 2)
+
+    ax = axes.ravel()
+
+    plt.title(f"Shadow Region {label}")
+
+    ax[0].imshow(cv.cvtColor(org_image, cv.COLOR_BGR2RGB))
+    ax[0].set_title("Original Image")
+
+    ax[1].imshow(cv.cvtColor(temp_filter, cv.COLOR_BGR2RGB))
+    ax[1].set_title("Shadow Region")
+
+    ax[2].imshow(cv.cvtColor(img_w_hole, cv.COLOR_BGR2RGB))
+    ax[2].set_title("Shadow Region Cut")
+
+    ax[3].imshow(cv.cvtColor(shadow_clear_image, cv.COLOR_BGR2RGB))
+    ax[3].set_title("Corrected Image")
+
+    plt.tight_layout()
+    plt.show()
+
+
+def correct_region_lab(org_img: np.ndarray,
+                       shadow_clear_img: np.ndarray,
+                       shadow_indices: np.ndarray,
+                       non_shadow_indices: np.ndarray) -> np.ndarray:
+    # Q: Rather than asking for RGB constants individually, why not adjust L only?
+    # A: L component isn't enough to REVIVE the colors that were under the shadow.
+
+    # Calculate average LAB values in current shadow region and non-shadow areas
+    shadow_average_lab = np.mean(org_img[shadow_indices[0], shadow_indices[1], :], axis=0)
+
+    # Get the average LAB from border areas
+    border_average_lab = np.mean(org_img[non_shadow_indices[0], non_shadow_indices[1], :],
+                                 axis=0)
+
+    # Calculate ratios that are going to be used on clearing the current shadow region
+    # This is different for each region, therefore calculated each time
+    lab_ratio = border_average_lab / shadow_average_lab
+
+    shadow_clear_img = cv.cvtColor(shadow_clear_img, cv.COLOR_BGR2LAB)
+    shadow_clear_img[shadow_indices[0], shadow_indices[1]] = np.uint8(
+        shadow_clear_img[shadow_indices[0],
+                         shadow_indices[1]] * lab_ratio)
+    shadow_clear_img = cv.cvtColor(shadow_clear_img, cv.COLOR_LAB2BGR)
+
+    return shadow_clear_img
+
+
+def correct_region_bgr(org_img: np.ndarray,
+                       shadow_clear_img: np.ndarray,
+                       shadow_indices: np.ndarray,
+                       non_shadow_indices: np.ndarray) -> np.ndarray:
+    # Calculate average BGR values in current shadow region and non-shadow areas
+    shadow_average_bgr = np.mean(org_img[shadow_indices[0], shadow_indices[1], :], axis=0)
+
+    # Get the average BGR from border areas
+    border_average_bgr = np.mean(org_img[non_shadow_indices[0], non_shadow_indices[1], :], axis=0)
+    bgr_ratio = border_average_bgr / shadow_average_bgr
+
+    # Adjust BGR
+    shadow_clear_img[shadow_indices[0], shadow_indices[1]] = np.uint8(
+        shadow_clear_img[shadow_indices[0],
+                         shadow_indices[1]] * bgr_ratio)
+
+    return shadow_clear_img
+
+
+def process_regions(org_image: np.ndarray,
+                    mask: np.ndarray,
+                    lab_adjustment: bool,
+                    shadow_dilation_kernel_size: int,
+                    shadow_dilation_iteration: int,
+                    shadow_size_threshold: int,
+                    verbose: bool) -> np.ndarray:
+    lab_img = cv.cvtColor(org_image, cv.COLOR_BGR2LAB)
     shadow_clear_img = np.copy(org_image)  # Used for constructing corrected image
 
     # We need connected components
@@ -97,40 +175,12 @@ def process_regions(org_image,
                 # Contours are used for extracting the edges of the current shadow region
                 contours, hierarchy = cv.findContours(temp_filter, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
 
-                # Q: Rather than asking for RGB constants individually, why not adjust L only?
-                # A: L component isn't enough to REVIVE the colors that were under the shadow.
-
-                # Calculate average LAB and BGR values in current shadow region and non-shadow areas
-                # Find the average of the non-shadow areas
                 if lab_adjustment:
-
-                    shadow_average_lab = np.mean(lab_img[shadow_indices[0], shadow_indices[1], :], axis=0)
-
-                    # Get the average LAB from border areas
-                    border_average_lab = np.mean(lab_img[non_shadow_indices[0], non_shadow_indices[1], :],
-                                                 axis=0)
-
-                    # Calculate ratios that are going to be used on clearing the current shadow region
-                    # This is different for each region, therefore calculated each time
-                    lab_ratio = border_average_lab / shadow_average_lab
-
-                    shadow_clear_img = cv.cvtColor(shadow_clear_img, cv.COLOR_BGR2LAB)
-                    shadow_clear_img[shadow_indices[0], shadow_indices[1]] = np.uint8(
-                        shadow_clear_img[shadow_indices[0],
-                                         shadow_indices[1]] * lab_ratio)
-                    shadow_clear_img = cv.cvtColor(shadow_clear_img, cv.COLOR_LAB2BGR)
-
+                    shadow_clear_img = correct_region_lab(lab_img, shadow_clear_img,
+                                                          shadow_indices, non_shadow_indices)
                 else:
-                    shadow_average_bgr = np.mean(org_image[shadow_indices[0], shadow_indices[1], :], axis=0)
-
-                    # Get the average BGR from border areas
-                    border_average_bgr = np.mean(org_image[non_shadow_indices[0], non_shadow_indices[1], :], axis=0)
-                    bgr_ratio = border_average_bgr / shadow_average_bgr
-
-                    # Adjust BGR
-                    shadow_clear_img[shadow_indices[0], shadow_indices[1]] = np.uint8(
-                        shadow_clear_img[shadow_indices[0],
-                                         shadow_indices[1]] * bgr_ratio)
+                    shadow_clear_img = correct_region_bgr(org_image, shadow_clear_img,
+                                                          shadow_indices, non_shadow_indices)
 
                 # Then apply median filtering over edges to smooth them
                 # At least on the images I tried, this doesn't work as intended.
@@ -141,41 +191,19 @@ def process_regions(org_image,
                 shadow_clear_img = edge_median_filter(cv.cvtColor(shadow_clear_img, cv.COLOR_BGR2HSV),
                                                       contours)
                 if verbose:
-                    # For debugging, cut the current shadow region from the image
-                    reverse_mask = cv.cvtColor(cv.bitwise_not(temp_filter), cv.COLOR_GRAY2BGR)
-                    img_w_hole = org_image & reverse_mask
-
-                    temp_filter = cv.cvtColor(temp_filter, cv.COLOR_GRAY2BGR)
-                    cv.drawContours(temp_filter, contours, -1, (255, 0, 0), 3)
-
-                    fig, axes = plt.subplots(2, 2)
-
-                    ax = axes.ravel()
-
-                    plt.title(f"Shadow Region {label}")
-
-                    ax[0].imshow(cv.cvtColor(org_image, cv.COLOR_BGR2RGB))
-                    ax[0].set_title("Original Image")
-
-                    ax[1].imshow(cv.cvtColor(temp_filter, cv.COLOR_BGR2RGB))
-                    ax[1].set_title("Shadow Region")
-
-                    ax[2].imshow(cv.cvtColor(img_w_hole, cv.COLOR_BGR2RGB))
-                    ax[2].set_title("Shadow Region Cut")
-
-                    ax[3].imshow(cv.cvtColor(shadow_clear_img, cv.COLOR_BGR2RGB))
-                    ax[3].set_title("Corrected Image")
-
-                    plt.tight_layout()
-                    plt.show()
+                    display_region(org_image, shadow_clear_img, label, temp_filter, contours)
 
     return shadow_clear_img
 
 
-def calculate_mask(lab_img,
-                   means,
-                   thresholds,
-                   region_adjustment_kernel_size) -> np.ndarray:
+def calculate_mask(org_image: np.ndarray,
+                   region_adjustment_kernel_size: int) -> np.ndarray:
+    lab_img = cv.cvtColor(org_image, cv.COLOR_BGR2LAB)
+
+    # Calculate the mean values of A and B across all pixels
+    means = [np.mean(lab_img[:, :, i]) for i in range(3)]
+    thresholds = [means[i] - (np.std(lab_img[:, :, i]) / 3) for i in range(3)]
+
     # If mean is below 256 (which is I think the max value for a channel)
     channel_max = 256
 
@@ -193,23 +221,16 @@ def calculate_mask(lab_img,
     return mask
 
 
-def remove_shadows(org_image,
-                   lab_adjustment,
-                   region_adjustment_kernel_size,
-                   shadow_dilation_iteration,
-                   shadow_dilation_kernel_size,
-                   shadow_size_threshold,
-                   verbose) -> Tuple[np.ndarray, np.ndarray]:
-    lab_img = cv.cvtColor(org_image, cv.COLOR_BGR2LAB)
-
-    # Calculate the mean values of A and B across all pixels
-    means = [np.mean(lab_img[:, :, i]) for i in range(3)]
-    thresholds = [means[i] - (np.std(lab_img[:, :, i]) / 3) for i in range(3)]
-
-    mask = calculate_mask(lab_img, means, thresholds, region_adjustment_kernel_size)
+def remove_shadows(org_image: np.ndarray,
+                   lab_adjustment: bool,
+                   region_adjustment_kernel_size: int,
+                   shadow_dilation_iteration: int,
+                   shadow_dilation_kernel_size: int,
+                   shadow_size_threshold: int,
+                   verbose: bool) -> Tuple[np.ndarray, np.ndarray]:
+    mask = calculate_mask(org_image, region_adjustment_kernel_size)
 
     shadow_clear_img = process_regions(org_image,
-                                       lab_img,
                                        mask,
                                        lab_adjustment,
                                        shadow_dilation_kernel_size,
@@ -229,7 +250,7 @@ def process_image_file(img_name,
                        shadow_dilation_kernel_size=5,
                        shadow_dilation_iteration=3,
                        shadow_size_threshold=2500,
-                       verbose=False) -> Tuple[np.ndarray, np.ndarray]:
+                       verbose=False) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     org_image = cv.imread(img_name)
     print("Read the image {}".format(img_name))
 
@@ -263,4 +284,4 @@ def process_image_file(img_name,
         cv.imwrite(f_name, shadow_clear)
         print("Saved result as " + f_name)
 
-    return org_image, shadow_clear
+    return org_image, mask, shadow_clear
