@@ -202,18 +202,29 @@ def calculate_mask(org_image: np.ndarray,
                    region_adjustment_kernel_size: int) -> np.ndarray:
     lab_img = cv.cvtColor(org_image, cv.COLOR_BGR2LAB)
 
-    # Calculate the mean values of A and B across all pixels
+    # Convert the L,A,B from 0 to 255 to 0 - 100 and -128 - 127 and -128 - 127 respectively
+    l_range = (0, 100)
+    ab_range = (-128, 127)
+
+    lab_img = lab_img.astype('int16')
+    lab_img[:, :, 0] = lab_img[:, :, 0] * 100 / 255
+    lab_img[:, :, 1] -= 128
+    lab_img[:, :, 2] -= 128
+
+    # Calculate the mean values of L, A and B across all pixels
     means = [np.mean(lab_img[:, :, i]) for i in range(3)]
     thresholds = [means[i] - (np.std(lab_img[:, :, i]) / 3) for i in range(3)]
 
-    # If mean is below 256 (which is I think the max value for a channel)
+    # If mean is below 256 (paper)
     channel_max = 256
 
     # Apply threshold using only L
     if sum(means[1:]) <= channel_max:
-        mask = cv.inRange(lab_img, (0, 0, 0), (thresholds[0], channel_max, channel_max))
+        mask = cv.inRange(lab_img, (l_range[0], ab_range[0], ab_range[0]),
+                                   (thresholds[0], ab_range[1], ab_range[1]))
     else:  # Else, also consider B channel
-        mask = cv.inRange(lab_img, (0, 0, 0), (thresholds[0], channel_max, thresholds[2]))
+        mask = cv.inRange(lab_img, (l_range[0], ab_range[0], ab_range[0]),
+                                   (thresholds[0], ab_range[1], thresholds[2]))
 
     kernel_size = (region_adjustment_kernel_size, region_adjustment_kernel_size)
     kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, kernel_size)
