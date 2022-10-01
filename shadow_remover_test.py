@@ -11,6 +11,7 @@ if __name__ == "__main__":
                         default=True, nargs='?')
     parser.add_argument('--lab', help="Adjust the pixel values according to LAB",
                         default=False, nargs='?')
+    parser.add_argument('--ab', help="AB channel mean sum threshold", default=256)
     parser.add_argument('--rk', help="Region Adjustment Kernel Size", default=10)
     parser.add_argument('--sdk', help="Shadow Dilation Kernel Size", default=3)
     parser.add_argument('--sdi', help="Shadow Dilation Iteration", default=5)

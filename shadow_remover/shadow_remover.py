@@ -21,12 +21,10 @@ Cybernetics and information technologies 13.1 (2013): 95-103.
 
 '''
 
-
-# TODO:
-# Documentation
-
 # Applies median filtering over given point
-def median_filter(img: np.ndarray, point: np.ndarray, filter_size: int) -> List:
+def median_filter(img: np.ndarray,
+                  point: np.ndarray,
+                  filter_size: int) -> List:
     indices = [[x, y]
                for x in range(point[1] - filter_size // 2, point[1] + filter_size // 2 + 1)
                for y in range(point[0] - filter_size // 2, point[0] + filter_size // 2 + 1)]
@@ -46,7 +44,9 @@ def median_filter(img: np.ndarray, point: np.ndarray, filter_size: int) -> List:
 
 
 # Applies median filtering on given contour pixels, the filter size is adjustable
-def edge_median_filter(img: np.ndarray, contours_list: tuple, filter_size: int = 7) -> np.ndarray:
+def edge_median_filter(img: np.ndarray,
+                       contours_list: tuple,
+                       filter_size: int = 7) -> np.ndarray:
     temp_img = np.copy(img)
 
     for partition in contours_list:
@@ -199,6 +199,7 @@ def process_regions(org_image: np.ndarray,
 
 
 def calculate_mask(org_image: np.ndarray,
+                   ab_threshold: int,
                    region_adjustment_kernel_size: int) -> np.ndarray:
     lab_img = cv.cvtColor(org_image, cv.COLOR_BGR2LAB)
 
@@ -215,11 +216,8 @@ def calculate_mask(org_image: np.ndarray,
     means = [np.mean(lab_img[:, :, i]) for i in range(3)]
     thresholds = [means[i] - (np.std(lab_img[:, :, i]) / 3) for i in range(3)]
 
-    # If mean is below 256 (paper)
-    channel_max = 256
-
     # Apply threshold using only L
-    if sum(means[1:]) <= channel_max:
+    if sum(means[1:]) <= ab_threshold:
         mask = cv.inRange(lab_img, (l_range[0], ab_range[0], ab_range[0]),
                                    (thresholds[0], ab_range[1], ab_range[1]))
     else:  # Else, also consider B channel
@@ -235,13 +233,16 @@ def calculate_mask(org_image: np.ndarray,
 
 
 def remove_shadows(org_image: np.ndarray,
+                   ab_threshold: int,
                    lab_adjustment: bool,
                    region_adjustment_kernel_size: int,
                    shadow_dilation_iteration: int,
                    shadow_dilation_kernel_size: int,
                    shadow_size_threshold: int,
                    verbose: bool) -> Tuple[np.ndarray, np.ndarray]:
-    mask = calculate_mask(org_image, region_adjustment_kernel_size)
+    mask = calculate_mask(org_image,
+                          ab_threshold,
+                          region_adjustment_kernel_size)
 
     shadow_clear_img = process_regions(org_image,
                                        mask,
@@ -256,18 +257,20 @@ def remove_shadows(org_image: np.ndarray,
     return shadow_clear_img, mask
 
 
-def process_image_file(img_name,
-                       save=False,
-                       lab_adjustment=False,
-                       region_adjustment_kernel_size=10,
-                       shadow_dilation_kernel_size=5,
-                       shadow_dilation_iteration=3,
-                       shadow_size_threshold=2500,
-                       verbose=False) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+def process_image_file(img_name: str,
+                       save: bool = False,
+                       ab_threshold: int = 256,
+                       lab_adjustment: bool = False,
+                       region_adjustment_kernel_size: int = 10,
+                       shadow_dilation_kernel_size: int = 5,
+                       shadow_dilation_iteration: int = 3,
+                       shadow_size_threshold: int = 2500,
+                       verbose: bool = False) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     org_image = cv.imread(img_name)
     print("Read the image {}".format(img_name))
 
     shadow_clear, mask = remove_shadows(org_image,
+                                        ab_threshold,
                                         lab_adjustment,
                                         region_adjustment_kernel_size,
                                         shadow_dilation_iteration,
