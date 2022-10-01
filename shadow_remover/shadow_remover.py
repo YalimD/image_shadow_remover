@@ -207,9 +207,9 @@ def calculate_mask(org_image: np.ndarray,
     ab_range = (-128, 127)
 
     lab_img = lab_img.astype('int16')
-    lab_img[:, :, 0] = lab_img[:, :, 0] * 100 / 255
-    lab_img[:, :, 1] -= 128
-    lab_img[:, :, 2] -= 128
+    lab_img[:, :, 0] = lab_img[:, :, 0] * l_range[1] / 255
+    lab_img[:, :, 1] += ab_range[0]
+    lab_img[:, :, 2] += ab_range[0]
 
     # Calculate the mean values of L, A and B across all pixels
     means = [np.mean(lab_img[:, :, i]) for i in range(3)]
